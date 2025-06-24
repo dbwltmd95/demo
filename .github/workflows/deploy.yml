@@ -64,15 +64,13 @@ jobs:
           username: ec2-user
           key: ${{ secrets.BASTION_SSH_KEY }}
           script: |
-            echo "[INFO] SSH from Bastion to Private EC2"
-            ssh -o StrictHostKeyChecking=no -i ~/yjs-demo.pem ec2-user@${{ secrets.PRIVATE_EC2_IP }} << "EOF"
+            echo "[INFO] Upload to Private EC2 from Bastion"
+            echo "${{ secrets.PRIVATE_EC2_KEY }}" > ~/private-ec2.pem
+            chmod 400 ~/private-ec2.pem
+            scp -i ~/private-ec2.pem -o StrictHostKeyChecking=no ~/demo-app/* ec2-user@${{ secrets.PRIVATE_EC2_IP }}:~/demo-app/
+            ssh -i ~/private-ec2.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.PRIVATE_EC2_IP }} << "EOF"
               echo "[INFO] Deploying on Private EC2..."
-              mkdir -p ~/demo-app
               cd ~/demo-app
-              rm -f Dockerfile *.jar
-              echo "[INFO] Copying files from Bastion"
-              scp -o StrictHostKeyChecking=no ec2-user@${{ secrets.BASTION_HOST }}:~/demo-app/* . || true
-              echo "[INFO] Building Docker image"
               docker stop demo-app || true
               docker rm demo-app || true
               docker build -t demo-app .
