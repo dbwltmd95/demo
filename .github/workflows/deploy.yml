@@ -65,10 +65,8 @@ jobs:
           key: ${{ secrets.BASTION_SSH_KEY }}
           script: |
             echo "[INFO] Upload to Private EC2 from Bastion"
-            echo "${{ secrets.BASTION_SSH_KEY }}" > ~/private-ec2.pem
-            chmod 600 ~/private-ec2.pem 
-            scp -i ~/private-ec2.pem -o StrictHostKeyChecking=no ~/demo-app/* ec2-user@${{ secrets.PRIVATE_EC2_IP }}:~/demo-app/
-            ssh -i ~/private-ec2.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.PRIVATE_EC2_IP }} << "EOF"
+            scp -i ~/yjs-demo.pem -o StrictHostKeyChecking=no ~/demo-app/* ec2-user@${{ secrets.PRIVATE_EC2_IP }}:~/demo-app/
+            ssh -i ~/yjs-demo.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.PRIVATE_EC2_IP }} << "EOF"
               echo "[INFO] Deploying on Private EC2..."
               cd ~/demo-app
               docker stop demo-app || true
