@@ -1,4 +1,4 @@
-name: CI/CD Pipeline with Dockerfile
+name: CI/CD Pipeline via Bastion to Private EC2
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: Build and Archive
+    name: Build and Upload
     runs-on: ubuntu-latest
 
     steps:
@@ -19,18 +19,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant execute permission to Gradle
+      - name: Grant Gradle execute permission
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
         run: ./gradlew build
 
-      - name: Archive for deploy (JAR + Dockerfile)
+      - name: Prepare deploy package (JAR + Dockerfile)
         run: |
           mkdir deploy
           cp Dockerfile deploy/
           cp build/libs/*.jar deploy/
-        # JAR + Dockerfile만 업로드
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -38,7 +38,7 @@ jobs:
           path: deploy/
 
   deploy:
-    name: Deploy to EC2
+    name: Deploy from Bastion to Private EC2
     runs-on: ubuntu-latest
     needs: build
 
@@ -48,24 +48,32 @@ jobs:
         with:
           name: deploy-files
 
-      - name: Upload to EC2
+      - name: Upload files to Bastion
         uses: appleboy/scp-action@v0.1.4
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.BASTION_HOST }}
           username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key: ${{ secrets.BASTION_SSH_KEY }}
           source: "*"
           target: "~/demo-app"
 
-      - name: SSH and deploy
+      - name: SSH to Bastion and deploy to Private EC2
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.BASTION_HOST }}
           username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key: ${{ secrets.BASTION_SSH_KEY }}
           script: |
-            cd ~/demo-app
-            docker stop demo-app || true
-            docker rm demo-app || true
-            docker build -t demo-app .
-            docker run -d -p 8080:8080 --name demo-app demo-app
+            echo "[INFO] SSH from Bastion to Private EC2"
+            BASTION_HOST=${{ secrets.BASTION_HOST }}
+            ssh -o StrictHostKeyChecking=no -i ~/yjs-demo.pem ec2-user@${{ secrets.PRIVATE_EC2_IP }} << 'EOF'
+              mkdir -p ~/demo-app
+              cd ~/demo-app
+              rm -f Dockerfile *.jar
+              # 파일 복사 (Dockerfile, JAR)
+              scp ec2-user@$BASTION_HOST:~/demo-app/* . || true
+              docker stop demo-app || true
+              docker rm demo-app || true
+              docker build -t demo-app .
+              docker run -d -p 8080:8080 --name demo-app demo-app
+            EOF
